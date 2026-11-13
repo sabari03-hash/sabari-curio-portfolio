@@ -2,7 +2,7 @@
 
 > It starts with a question.
 
-Portfolio site for **Curio**, a faceless YouTube channel focused on video editing and motion graphics.
+Portfolio site for **Curio**, a YouTube channel focused on video editing and motion graphics.
 Dark, cinematic, glassy, with a 3D parrot you can pet to flip the card and see who's behind the channel.
 
 Built with **Next.js + React + Three.js** (react-three-fiber). It exports as a plain static site, so hosting is free.

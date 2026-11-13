@@ -76,7 +76,7 @@ export const brand = {
   name: "Curio",
   tagline: "It starts with a question.",
   /** Line under the tagline on the front card */
-  intro: "Faceless storytelling, video editing and motion graphics.",
+  intro: "Cinematic video editing and motion graphics.",
   /** Small hint shown above the parrot */
   petHint: "Pet me to see inside me",
 };

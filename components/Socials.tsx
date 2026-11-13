@@ -76,7 +76,7 @@ export function YouTubeShowcase() {
             <h2 className="section-title" id="yt-title">
               Questions, <span className="accent">answered</span>
             </h2>
-            <p className="section-sub">Faceless stories on the {socials.youtube.name} channel.</p>
+            <p className="section-sub">Stories and edits on the {socials.youtube.name} channel.</p>
           </div>
         </Reveal>
 
