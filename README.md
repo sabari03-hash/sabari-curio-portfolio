@@ -161,7 +161,7 @@ content/site.ts          ← all text, links, videos, testimonials (edit this)
 public/                  ← your media files
 app/                     ← page layout, global styles, theme colours
 components/
-  ParrotScene.tsx        ← the 3D parrot, built from code (blinks, tilts, follows the mouse, reacts to scroll)
+  ParrotScene.tsx        ← the 3D cartoon lovebird, built from code (blinks, tilts, follows the mouse, reacts to scroll)
   Hero.tsx               ← intro + flip card (front: parrot, back: about you)
   DwellVideo.tsx         ← video tile that plays after 2s and pauses when you leave
   Work.tsx               ← master video + horizontal project row

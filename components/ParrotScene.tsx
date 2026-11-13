@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * The Curio parrot — built entirely in code from simple low-poly shapes,
- * so there is no 3D model file to download.
+ * The Curio parrot — a chubby cartoon lovebird (lime body, coral face,
+ * orange neck band, red hooked beak) built entirely in code with toon
+ * shading and black outlines, so there is no 3D model file to download.
  *
  * Behaviour:
  *  - idles: breathes, bobs, blinks and tilts its head now and then
@@ -12,7 +13,7 @@
  */
 
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type Ref } from "react";
 import * as THREE from "three";
 
 const damp = THREE.MathUtils.damp;
@@ -27,55 +28,87 @@ type SceneProps = {
 };
 
 const COLORS = {
-  body: "#10b981",
-  head: "#34d399",
-  belly: "#6ee7b7",
-  wing: "#047857",
-  wingTip: "#14b8a6",
-  tailA: "#0d9488",
-  tailB: "#115e59",
-  crest: "#2dd4bf",
-  face: "#f1f7f4",
-  eye: "#050c0a",
-  beak: "#efe9d6",
-  beakLow: "#2b2f2d",
-  feet: "#6b7280",
+  body: "#8cc63f", // lime green
+  bodyBack: "#6fb02e",
+  face: "#fb4a40", // coral red
+  neck: "#f9954f", // orange band
+  beak: "#ec1940", // crimson
+  wing: "#2ba24c", // leaf green
+  wingDark: "#1f7a3a",
+  eye: "#050505",
+  feet: "#55575a",
   perch: "#3a2a1d",
+  outline: "#050505",
 };
 
-function useMaterials() {
+/** Outline thickness in world units (inverted-hull technique) */
+const LINE = 0.045;
+
+function useToon() {
   return useMemo(() => {
-    const m = (color: string, extra: Partial<THREE.MeshStandardMaterialParameters> = {}) =>
-      new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05, flatShading: true, ...extra });
+    // 3-step gradient gives the flat, sticker-like cartoon shading
+    const data = new Uint8Array([110, 110, 110, 255, 190, 190, 190, 255, 255, 255, 255, 255]);
+    const gradient = new THREE.DataTexture(data, 3, 1, THREE.RGBAFormat);
+    gradient.minFilter = THREE.NearestFilter;
+    gradient.magFilter = THREE.NearestFilter;
+    gradient.needsUpdate = true;
+    const toon = (color: string) => new THREE.MeshToonMaterial({ color, gradientMap: gradient });
     return {
-      body: m(COLORS.body),
-      head: m(COLORS.head),
-      belly: m(COLORS.belly),
-      wing: m(COLORS.wing),
-      wingTip: m(COLORS.wingTip, { emissive: COLORS.wingTip, emissiveIntensity: 0.15 }),
-      tailA: m(COLORS.tailA),
-      tailB: m(COLORS.tailB),
-      crest: m(COLORS.crest, { emissive: COLORS.crest, emissiveIntensity: 0.35 }),
-      face: m(COLORS.face, { roughness: 0.8 }),
-      eye: new THREE.MeshStandardMaterial({ color: COLORS.eye, roughness: 0.08, metalness: 0.3 }),
+      body: toon(COLORS.body),
+      bodyBack: toon(COLORS.bodyBack),
+      face: toon(COLORS.face),
+      neck: toon(COLORS.neck),
+      beak: toon(COLORS.beak),
+      wing: toon(COLORS.wing),
+      wingDark: toon(COLORS.wingDark),
+      feet: toon(COLORS.feet),
+      perch: toon(COLORS.perch),
+      eye: new THREE.MeshBasicMaterial({ color: COLORS.eye }),
       shine: new THREE.MeshBasicMaterial({ color: "#ffffff" }),
-      beak: m(COLORS.beak, { roughness: 0.35 }),
-      beakLow: m(COLORS.beakLow),
-      feet: m(COLORS.feet),
-      perch: m(COLORS.perch, { roughness: 0.9 }),
+      outline: new THREE.MeshBasicMaterial({ color: COLORS.outline, side: THREE.BackSide }),
     };
   }, []);
 }
 
+type V3 = [number, number, number];
+
+/** An ellipsoid with a black cartoon outline */
+function Blob({
+  geometry,
+  material,
+  outline,
+  position,
+  scale,
+  rotation,
+  line = LINE,
+  meshRef,
+}: {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
+  outline?: THREE.Material;
+  position?: V3;
+  scale: V3;
+  rotation?: V3;
+  line?: number;
+  meshRef?: Ref<THREE.Mesh>;
+}) {
+  return (
+    <group position={position} rotation={rotation}>
+      <mesh ref={meshRef} geometry={geometry} material={material} scale={scale} />
+      {outline && (
+        <mesh geometry={geometry} material={outline} scale={[scale[0] + line, scale[1] + line, scale[2] + line]} />
+      )}
+    </group>
+  );
+}
+
 function Parrot({ onPet, reduced }: { onPet: () => void; reduced: boolean }) {
-  const mat = useMaterials();
-  const ico = useMemo(() => new THREE.IcosahedronGeometry(1, 2), []);
-  const smooth = useMemo(() => new THREE.SphereGeometry(1, 24, 16), []);
+  const mat = useToon();
+  const sphere = useMemo(() => new THREE.SphereGeometry(1, 40, 28), []);
 
   const root = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const head = useRef<THREE.Group>(null);
-  const crest = useRef<THREE.Group>(null);
   const wingL = useRef<THREE.Group>(null);
   const wingR = useRef<THREE.Group>(null);
   const tail = useRef<THREE.Group>(null);
@@ -86,7 +119,7 @@ function Parrot({ onPet, reduced }: { onPet: () => void; reduced: boolean }) {
     nextBlink: 1.5,
     blinkStart: -10,
     nextTilt: 2,
-    tilt: 0,
+    tilt: 0.12,
     petStart: -10,
     stroke: 0,
     lastPet: -10,
@@ -125,16 +158,16 @@ function Parrot({ onPet, reduced }: { onPet: () => void; reduced: boolean }) {
     // ---- look at the pointer ----
     const lx = input.x;
     const ly = input.y;
-    h.rotation.y = damp(h.rotation.y, lx * 0.75, 5, dt);
-    h.rotation.x = damp(h.rotation.x, -ly * 0.35 + input.scroll * 0.35, 5, dt);
+    h.rotation.y = damp(h.rotation.y, lx * 0.6, 5, dt);
+    h.rotation.x = damp(h.rotation.x, -ly * 0.3 + input.scroll * 0.3, 5, dt);
     for (const p of pupils.current) {
       if (!p) continue;
-      p.position.x = damp(p.position.x, lx * 0.03, 8, dt);
-      p.position.y = damp(p.position.y, ly * 0.025, 8, dt);
+      p.position.x = damp(p.position.x, lx * 0.035, 8, dt);
+      p.position.y = damp(p.position.y, ly * 0.03, 8, dt);
     }
 
     // ---- scroll reaction: turn toward the page + flap when scrolling fast ----
-    r.rotation.y = damp(r.rotation.y, lx * 0.2 + input.scroll * 0.9, 3, dt);
+    r.rotation.y = damp(r.rotation.y, -0.25 + lx * 0.2 + input.scroll * 0.9, 3, dt);
     const flapAmt = Math.min(Math.abs(input.velocity) / 40, 1);
     input.velocity *= Math.pow(0.02, dt); // decay
 
@@ -144,17 +177,17 @@ function Parrot({ onPet, reduced }: { onPet: () => void; reduced: boolean }) {
     const squish = petting ? Math.sin((petT / 0.9) * Math.PI) : 0;
 
     if (reduced) {
-      h.rotation.z = damp(h.rotation.z, 0, 4, dt);
+      h.rotation.z = damp(h.rotation.z, 0.12, 4, dt);
       for (const lid of lids.current) if (lid) lid.visible = false;
       b.scale.set(1, 1, 1);
-      if (wingL.current) wingL.current.rotation.z = 0.12;
-      if (wingR.current) wingR.current.rotation.z = -0.12;
+      if (wingL.current) wingL.current.rotation.z = 0.1;
+      if (wingR.current) wingR.current.rotation.z = -0.1;
       return;
     }
 
-    // ---- idle: head tilts ----
+    // ---- idle: head tilts (lovebirds love a curious tilt) ----
     if (t > a.nextTilt) {
-      a.tilt = Math.random() < 0.35 ? 0 : (Math.random() - 0.5) * 0.8;
+      a.tilt = Math.random() < 0.3 ? 0 : (Math.random() - 0.4) * 0.7;
       a.nextTilt = t + 2.2 + Math.random() * 3;
     }
     h.rotation.z = damp(h.rotation.z, a.tilt - lx * 0.08 + squish * 0.25, 3, dt);
@@ -167,7 +200,7 @@ function Parrot({ onPet, reduced }: { onPet: () => void; reduced: boolean }) {
     }
     const bt = t - a.blinkStart;
     let lid = bt < 0.16 ? Math.sin((bt / 0.16) * Math.PI) : 0;
-    lid = Math.max(lid, squish * 0.65);
+    lid = Math.max(lid, squish * 0.7);
     for (const l of lids.current) {
       if (!l) continue;
       l.visible = lid > 0.02;
@@ -175,56 +208,62 @@ function Parrot({ onPet, reduced }: { onPet: () => void; reduced: boolean }) {
     }
 
     // ---- idle: breathing + bob ----
-    const breathe = Math.sin(t * 2.1) * 0.018;
-    b.scale.set(1 + squish * 0.08 - breathe * 0.5, 1 + breathe - squish * 0.07, 1 + squish * 0.05);
-    r.position.y = 0.02 + Math.sin(t * 1.3) * 0.025 - squish * 0.04;
+    const breathe = Math.sin(t * 2.1) * 0.02;
+    b.scale.set(1 + squish * 0.09 - breathe * 0.5, 1 + breathe - squish * 0.08, 1 + squish * 0.06);
+    r.position.y = Math.sin(t * 1.3) * 0.025 - squish * 0.05;
 
     // ---- wings: rest, flutter on scroll / pet ----
     const flutter = Math.max(flapAmt, squish * 0.6);
-    const wing = 0.12 + flutter * (0.35 + Math.sin(t * 22) * 0.35);
+    const wing = 0.1 + flutter * (0.35 + Math.sin(t * 22) * 0.35);
     if (wingL.current) wingL.current.rotation.z = damp(wingL.current.rotation.z, wing, 12, dt);
     if (wingR.current) wingR.current.rotation.z = damp(wingR.current.rotation.z, -wing, 12, dt);
 
-    // ---- tail sway + crest perk ----
+    // ---- tail sway ----
     if (tail.current) tail.current.rotation.z = Math.sin(t * 1.1) * 0.06 + flutter * Math.sin(t * 15) * 0.1;
-    if (crest.current) crest.current.rotation.x = damp(crest.current.rotation.x, squish * 0.45 + flapAmt * 0.2, 6, dt);
   });
 
+  const o = mat.outline;
+
   const eye = (side: 1 | -1, i: number) => (
-    <group position={[0.19 * side, 0.2, 0.36]} rotation={[0, 0.45 * side, 0]}>
-      {/* white face patch (like a macaw) */}
-      <mesh geometry={ico} material={mat.face} position={[0.02 * side, -0.02, -0.04]} scale={[0.16, 0.17, 0.07]} />
+    <group position={[0.27 * side, 0.48, 0.58]} rotation={[0, 0.42 * side, 0]}>
       <group ref={(g) => { if (g) pupils.current[i] = g; }}>
-        <mesh geometry={smooth} material={mat.eye} scale={0.075} position={[0, 0, 0.03]} />
-        <mesh geometry={smooth} material={mat.shine} scale={0.022} position={[0.025, 0.028, 0.095]} />
+        {/* big round cartoon eye */}
+        <mesh geometry={sphere} material={mat.eye} scale={[0.135, 0.145, 0.06]} position={[0, 0, 0.02]} />
+        <mesh geometry={sphere} material={mat.shine} scale={0.025} position={[0.035, 0.045, 0.075]} />
       </group>
-      {/* eyelid */}
+      {/* eyelid (coral, like the face) */}
       <mesh
         ref={(m) => { if (m) lids.current[i] = m; }}
-        geometry={smooth}
-        material={mat.head}
-        scale={[0.095, 0.095, 0.095]}
-        position={[0, 0, 0.035]}
+        geometry={sphere}
+        material={mat.face}
+        scale={[0.16, 0.17, 0.09]}
+        position={[0, 0, 0.03]}
         visible={false}
       />
     </group>
   );
 
   return (
-    <group ref={root} position={[0, 0.02, 0]}>
+    <group ref={root}>
       {/* perch */}
-      <mesh material={mat.perch} position={[0, -1.18, 0.1]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.075, 0.085, 3.4, 10]} />
+      <mesh material={mat.perch} position={[0, -1.24, 0.1]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.07, 0.08, 3.2, 12]} />
       </mesh>
-      {[-1, 1].map((s) => (
-        <mesh key={s} geometry={ico} material={mat.feet} position={[0.17 * s, -1.11, 0.2]} scale={[0.1, 0.06, 0.15]} />
-      ))}
 
       {/* interactive bird (perch excluded) */}
       <group onPointerDown={handleDown} onPointerMove={handleMove}>
-        <group ref={body} position={[0, -0.38, 0]}>
-          <mesh geometry={ico} material={mat.body} scale={[0.6, 0.82, 0.56]} />
-          <mesh geometry={ico} material={mat.belly} position={[0, -0.12, 0.3]} scale={[0.42, 0.6, 0.3]} />
+        {/* feet */}
+        {[-1, 1].map((s) => (
+          <Blob key={s} geometry={sphere} material={mat.feet} outline={o} line={0.03} position={[0.24 * s, -1.15, 0.22]} scale={[0.15, 0.06, 0.12]} />
+        ))}
+
+        <group ref={body} position={[0, -0.42, 0]}>
+          {/* chubby egg-shaped body */}
+          <Blob geometry={sphere} material={mat.body} outline={o} scale={[0.7, 0.78, 0.66]} />
+          {/* darker back for depth */}
+          <mesh geometry={sphere} material={mat.bodyBack} position={[0, 0.02, -0.08]} scale={[0.69, 0.76, 0.6]} />
+          {/* orange neck band */}
+          <Blob geometry={sphere} material={mat.neck} position={[0, 0.5, 0.08]} scale={[0.6, 0.3, 0.56]} />
 
           {/* wings, pivoting at the shoulder */}
           {(
@@ -233,50 +272,48 @@ function Parrot({ onPet, reduced }: { onPet: () => void; reduced: boolean }) {
               [wingR, -1],
             ] as const
           ).map(([ref, s]) => (
-            <group key={s} ref={ref} position={[0.5 * s, 0.38, -0.04]}>
-              <mesh geometry={ico} material={mat.wing} position={[0.02 * s, -0.42, 0]} rotation={[0.15, 0, 0.12 * s]} scale={[0.18, 0.6, 0.4]} />
-              <mesh geometry={ico} material={mat.wingTip} position={[0.06 * s, -0.86, -0.12]} rotation={[0.3, 0, 0.1 * s]} scale={[0.13, 0.36, 0.27]} />
+            <group key={s} ref={ref} position={[0.66 * s, 0.28, 0.02]}>
+              <Blob
+                geometry={sphere}
+                material={mat.wing}
+                outline={o}
+                position={[0.02 * s, -0.36, -0.02]}
+                rotation={[0.2, 0.25 * s, 0.18 * s]}
+                scale={[0.16, 0.48, 0.36]}
+              />
             </group>
           ))}
 
           {/* tail feathers */}
-          <group ref={tail} position={[0, -0.72, -0.28]} rotation={[-0.38, 0, 0]}>
-            <mesh material={mat.tailA} position={[-0.07, -0.5, 0]} rotation={[Math.PI, 0, 0.1]}>
-              <coneGeometry args={[0.15, 1.05, 5]} />
-            </mesh>
-            <mesh material={mat.tailB} position={[0.08, -0.45, -0.04]} rotation={[Math.PI, 0, -0.12]}>
-              <coneGeometry args={[0.13, 0.9, 5]} />
-            </mesh>
+          <group ref={tail} position={[0, -0.45, -0.55]} rotation={[-0.9, 0, 0]}>
+            <Blob geometry={sphere} material={mat.wing} outline={o} position={[-0.1, -0.3, 0]} rotation={[0, 0, 0.25]} scale={[0.1, 0.36, 0.07]} />
+            <Blob geometry={sphere} material={mat.wingDark} outline={o} position={[0.1, -0.26, 0.02]} rotation={[0, 0, -0.25]} scale={[0.1, 0.32, 0.07]} />
           </group>
         </group>
 
         {/* head, pivoting at the neck */}
-        <group ref={head} position={[0, 0.35, 0.04]}>
-          <mesh geometry={ico} material={mat.head} position={[0, 0.2, 0]} scale={[0.44, 0.44, 0.43]} />
+        <group ref={head} position={[0, 0.05, 0.05]}>
+          {/* green crown/back of the head */}
+          <Blob geometry={sphere} material={mat.body} outline={o} position={[0, 0.48, -0.1]} scale={[0.68, 0.66, 0.64]} />
+          {/* coral face */}
+          <mesh geometry={sphere} material={mat.face} position={[0.03, 0.42, 0.08]} scale={[0.66, 0.62, 0.6]} />
+
           {eye(1, 0)}
           {eye(-1, 1)}
 
-          {/* hooked beak */}
-          <mesh material={mat.beak} position={[0, 0.16, 0.42]} scale={[0.15, 0.17, 0.16]} geometry={smooth} />
-          <mesh material={mat.beak} position={[0, 0.02, 0.55]} rotation={[Math.PI / 2 + 1.05, 0, 0]}>
-            <coneGeometry args={[0.1, 0.32, 8]} />
-          </mesh>
-          <mesh material={mat.beakLow} position={[0, 0.0, 0.42]} rotation={[Math.PI / 2 + 0.35, 0, 0]}>
-            <coneGeometry args={[0.08, 0.2, 8]} />
-          </mesh>
-
-          {/* crest */}
-          <group ref={crest} position={[0, 0.56, -0.04]}>
-            {[0, 1, 2].map((i) => (
-              <mesh
-                key={i}
-                material={mat.crest}
-                position={[0, 0.08 - i * 0.02, -i * 0.11]}
-                rotation={[-0.35 - i * 0.28, 0, 0]}
-              >
-                <coneGeometry args={[0.065 - i * 0.008, 0.38 - i * 0.04, 5]} />
-              </mesh>
-            ))}
+          {/* hooked red beak */}
+          <group position={[0, 0.3, 0.68]}>
+            <Blob geometry={sphere} material={mat.beak} outline={o} line={0.035} rotation={[0.3, 0, 0]} scale={[0.17, 0.17, 0.14]} />
+            {/* hooked tip */}
+            <Blob
+              geometry={sphere}
+              material={mat.beak}
+              outline={o}
+              line={0.03}
+              position={[0, -0.15, 0.05]}
+              rotation={[0.45, 0, 0]}
+              scale={[0.075, 0.12, 0.07]}
+            />
           </group>
         </group>
       </group>
@@ -325,14 +362,13 @@ export default function ParrotScene({ onPet, reduced, active }: SceneProps) {
       camera={{ position: [0, -0.15, 6.6], fov: 34 }}
       gl={{ antialias: true, alpha: true, powerPreference: "low-power" }}
       frameloop={active ? "always" : "never"}
-      aria-label="Curio the 3D parrot. Tap to pet it and flip the card."
+      aria-label="Curio the 3D lovebird. Tap to pet it and flip the card."
       role="img"
     >
-      <ambientLight intensity={0.45} />
-      <hemisphereLight args={["#bff7e6", "#04140f", 0.6]} />
-      <directionalLight position={[3, 4, 5]} intensity={1.8} />
-      <pointLight position={[-3, 1.2, 2]} color="#2dd4bf" intensity={14} />
-      <pointLight position={[2.5, 0.5, -2.5]} color="#10b981" intensity={22} />
+      <ambientLight intensity={0.75} />
+      <directionalLight position={[2.5, 4, 5]} intensity={2.4} />
+      {/* soft teal rim to tie into the site's glow */}
+      <pointLight position={[-2.5, 1.5, -2]} color="#2dd4bf" intensity={10} />
       <ResponsiveCamera />
       <Parrot onPet={onPet} reduced={reduced} />
     </Canvas>
