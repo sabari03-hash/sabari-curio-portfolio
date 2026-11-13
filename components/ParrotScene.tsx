@@ -232,14 +232,15 @@ function Parrot({ onPet, reduced }: { onPet: () => void; reduced: boolean }) {
         <mesh geometry={sphere} material={mat.shine} scale={0.025} position={[0.035, 0.045, 0.075]} />
       </group>
       {/* eyelid (coral, like the face) */}
-      <mesh
-        ref={(m) => { if (m) lids.current[i] = m; }}
-        geometry={sphere}
-        material={mat.face}
-        scale={[0.16, 0.17, 0.09]}
-        position={[0, 0, 0.03]}
-        visible={false}
-      />
+      {/* the outer group sets the lid's size; the blink animates the inner mesh's height */}
+      <group scale={[0.16, 0.17, 0.09]} position={[0, 0, 0.03]}>
+        <mesh
+          ref={(m) => { if (m) lids.current[i] = m; }}
+          geometry={sphere}
+          material={mat.face}
+          visible={false}
+        />
+      </group>
     </group>
   );
 
